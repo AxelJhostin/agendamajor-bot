@@ -61,6 +61,9 @@ app.post("/twilio/incoming", (req, res) => {
   let replyText = ""
 
   switch (session.state) {
+    // =========================
+    // MENU
+    // =========================
     case "MENU": {
       if (normalized === "1") {
         sessions.set(phone, { state: "ADD_APPT_TITLE", data: {} })
@@ -68,11 +71,19 @@ app.post("/twilio/incoming", (req, res) => {
         break
       }
 
-      // Placeholder para opciones aún no implementadas
-      if (["2", "3", "4", "5", "6"].includes(normalized)) {
+      if (normalized === "2") {
+        sessions.set(phone, { state: "ADD_MED_NAME", data: {} })
+        replyText = "Perfecto ✅\n¿Cuál medicina es? (Ej: Losartán, Insulina, Omeprazol)"
+        break
+      }
+
+      if (["3", "4", "5", "6"].includes(normalized)) {
         replyText =
           `Aún estoy aprendiendo esa opción 😊\n` +
-          `Por ahora escribe 1 para agendar una cita o escribe "menú".`
+          `Por ahora puedes usar:\n` +
+          `1) Agendar cita\n` +
+          `2) Agendar medicina\n\n` +
+          `O escribe "menú".`
         break
       }
 
@@ -82,6 +93,9 @@ app.post("/twilio/incoming", (req, res) => {
       break
     }
 
+    // =========================
+    // AGENDAR CITA (1)
+    // =========================
     case "ADD_APPT_TITLE": {
       const title = body
       if (!title) {
@@ -94,7 +108,6 @@ app.post("/twilio/incoming", (req, res) => {
     }
 
     case "ADD_APPT_DATE": {
-      // Validación simple DD/MM
       const m = body.match(/^(\d{1,2})\/(\d{1,2})$/)
       if (!m) {
         replyText = "Fecha no válida ⚠️\nEscribe en formato DD/MM. Ej: 05/02"
@@ -114,7 +127,6 @@ app.post("/twilio/incoming", (req, res) => {
     }
 
     case "ADD_APPT_TIME": {
-      // Validación HH:MM 24h
       const m = body.match(/^([01]?\d|2[0-3]):([0-5]\d)$/)
       if (!m) {
         replyText = "Hora no válida ⚠️\nEscribe en formato HH:MM. Ej: 16:30"
@@ -137,7 +149,6 @@ app.post("/twilio/incoming", (req, res) => {
 
     case "ADD_APPT_CONFIRM": {
       if (normalized === "1") {
-        // Guardado “en memoria” (por ahora solo confirmamos)
         sessions.set(phone, { state: "MENU", data: {} })
         replyText = `Listo ✅ Guardé tu cita.\n\nEscribe "menú" para ver opciones.`
         break
@@ -152,6 +163,103 @@ app.post("/twilio/incoming", (req, res) => {
       break
     }
 
+    // =========================
+    // AGENDAR MEDICINA (2)
+    // =========================
+    case "ADD_MED_NAME": {
+      const name = body
+      if (!name) {
+        replyText = "Escribe el nombre de la medicina, por favor. (Ej: Losartán)"
+        break
+      }
+      sessions.set(phone, { state: "ADD_MED_START_DATE", data: { name } })
+      replyText = `Anotado ✅: ${name}\n\n¿Desde qué día empiezas? (DD/MM). Ej: 05/02`
+      break
+    }
+
+    case "ADD_MED_START_DATE": {
+      const m = body.match(/^(\d{1,2})\/(\d{1,2})$/)
+      if (!m) {
+        replyText = "Fecha no válida ⚠️\nEscribe en formato DD/MM. Ej: 05/02"
+        break
+      }
+      const dd = Number(m[1])
+      const mm = Number(m[2])
+      if (dd < 1 || dd > 31 || mm < 1 || mm > 12) {
+        replyText = "Fecha no válida ⚠️\nEjemplo correcto: 05/02"
+        break
+      }
+
+      const data = session.data
+      sessions.set(phone, { state: "ADD_MED_TIME", data: { ...data, startDate: body } })
+      replyText = `Perfecto ✅ Desde: ${body}\n\n¿A qué hora? (HH:MM). Ej: 08:00`
+      break
+    }
+
+    case "ADD_MED_TIME": {
+      const m = body.match(/^([01]?\d|2[0-3]):([0-5]\d)$/)
+      if (!m) {
+        replyText = "Hora no válida ⚠️\nEscribe en formato HH:MM. Ej: 08:00"
+        break
+      }
+
+      const data = session.data
+      sessions.set(phone, { state: "ADD_MED_FREQ", data: { ...data, time: body } })
+
+      replyText =
+        `Gracias ✅\n` +
+        `¿Cada cuánto?\n` +
+        `1) Diario\n` +
+        `2) Lunes/Miércoles/Viernes\n` +
+        `3) Solo una vez\n\n` +
+        `Responde 1, 2 o 3.`
+      break
+    }
+
+    case "ADD_MED_FREQ": {
+      let freq = ""
+      if (normalized === "1") freq = "DIARIO"
+      else if (normalized === "2") freq = "LUN-MIE-VIE"
+      else if (normalized === "3") freq = "UNA_VEZ"
+      else {
+        replyText = "Opción no válida ⚠️\nResponde 1, 2 o 3."
+        break
+      }
+
+      const data = session.data
+      sessions.set(phone, { state: "ADD_MED_CONFIRM", data: { ...data, frequency: freq } })
+
+      replyText =
+        `CONFIRMA ✅\n` +
+        `Medicina: ${data.name}\n` +
+        `Desde: ${data.startDate}\n` +
+        `Hora: ${data.time}\n` +
+        `Frecuencia: ${freq}\n\n` +
+        `1) Confirmar\n` +
+        `2) Cambiar\n` +
+        `0) Menú`
+      break
+    }
+
+    case "ADD_MED_CONFIRM": {
+      if (normalized === "1") {
+        sessions.set(phone, { state: "MENU", data: {} })
+        replyText = `Listo ✅ Guardé tu medicina.\n\nEscribe "menú" para ver opciones.`
+        break
+      }
+      if (normalized === "2") {
+        const prev = session.data
+        sessions.set(phone, { state: "ADD_MED_START_DATE", data: { name: prev.name } })
+        replyText = `De acuerdo 👍\nRepite la fecha de inicio (DD/MM). Ej: 05/02`
+        break
+      }
+      replyText = `Responde 1 para confirmar, 2 para cambiar, o 0 para menú.`
+      break
+    }
+
+    // =========================
+    // FALLBACK
+    // =========================
     default: {
       replyText = goMenu()
       break
