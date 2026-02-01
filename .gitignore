@@ -1,0 +1,14 @@
+# Dependencias
+node_modules/
+
+# Base de datos local
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Variables de entorno
+.env
+
+# Sistema
+.DS_Store
