@@ -23,7 +23,7 @@ function parseDDMMToISO(ddmm) {
   const dd = Number(m[1])
   const mm = Number(m[2])
   if (dd < 1 || dd > 31 || mm < 1 || mm > 12) return null
-  // Año actual (suficiente para demo/examen)
+
   const year = dayjs().year()
   const iso = dayjs(`${year}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`)
   if (!iso.isValid()) return null
@@ -40,13 +40,11 @@ function formatDateISOToDDMM(iso) {
   return d.format("DD/MM")
 }
 
-function getWeekRangeISO() {
-  // Semana lunes-domingo
-  const now = dayjs()
-  const dow = now.day() // 0 domingo ... 6 sábado
-  const monday = now.subtract((dow + 6) % 7, "day").startOf("day")
-  const sunday = monday.add(6, "day").startOf("day")
-  return { start: monday.format("YYYY-MM-DD"), end: sunday.format("YYYY-MM-DD") }
+function getNext7DaysRangeISO() {
+  // Semana "próximos 7 días" (más clara para usuarios mayores)
+  const start = dayjs().startOf("day")
+  const end = start.add(6, "day")
+  return { start: start.format("YYYY-MM-DD"), end: end.format("YYYY-MM-DD") }
 }
 
 function groupByDate(items) {
@@ -55,7 +53,6 @@ function groupByDate(items) {
     if (!map.has(it.date)) map.set(it.date, [])
     map.get(it.date).push(it)
   }
-  // ordenar por fecha
   const dates = Array.from(map.keys()).sort()
   return dates.map((date) => ({
     date,
@@ -76,7 +73,7 @@ const selectTodayStmt = db.prepare(`
   ORDER BY time ASC
 `)
 
-const selectWeekStmt = db.prepare(`
+const selectRangeStmt = db.prepare(`
   SELECT id, type, title, date, time, frequency
   FROM reminders
   WHERE phone = ? AND date BETWEEN ? AND ?
@@ -97,7 +94,7 @@ app.post("/twilio/incoming", (req, res) => {
     `1) Agendar cita\n` +
     `2) Agendar medicina\n` +
     `3) Ver lo de hoy\n` +
-    `4) Ver mi semana\n` +
+    `4) Ver próximos 7 días\n` +
     `5) PDF semanal para imprimir\n` +
     `6) Configurar contacto de apoyo\n` +
     `0) Ayuda / menú`
@@ -163,17 +160,19 @@ app.post("/twilio/incoming", (req, res) => {
           return `${r.time} — ${typeLabel}: ${r.title}${extra}`
         })
 
-        replyText = `Hoy tienes:\n${lines.join("\n")}\n\nPara ver la semana responde 4.`
+        replyText = `Hoy tienes:\n${lines.join("\n")}\n\nPara ver próximos 7 días responde 4.`
         break
       }
 
       if (normalized === "4") {
-        const { start, end } = getWeekRangeISO()
-        const rows = selectWeekStmt.all(phone, start, end)
+        const { start, end } = getNext7DaysRangeISO()
+        const rangeLabel = `${formatDateISOToDDMM(start)} al ${formatDateISOToDDMM(end)}`
+        const rows = selectRangeStmt.all(phone, start, end)
 
         if (rows.length === 0) {
           replyText =
-            `Esta semana no tienes recordatorios ✅\n\n` +
+            `Próximos 7 días (${rangeLabel}):\n` +
+            `No tienes recordatorios ✅\n\n` +
             `Si quieres agendar uno, responde:\n` +
             `1) Cita\n2) Medicina\n\n` +
             `O escribe "menú".`
@@ -192,7 +191,7 @@ app.post("/twilio/incoming", (req, res) => {
         })
 
         replyText =
-          `Tu semana:\n\n${blocks.join("\n\n")}\n\n` +
+          `Próximos 7 días (${rangeLabel}):\n\n${blocks.join("\n\n")}\n\n` +
           `Si quieres imprimir, luego haremos la opción 5 (PDF).`
         break
       }
@@ -200,7 +199,7 @@ app.post("/twilio/incoming", (req, res) => {
       if (normalized === "5") {
         replyText =
           `Aún no genero el PDF 😊\n` +
-          `Primero vamos a dejar perfectas las citas/medicinas.\n\n` +
+          `Primero dejamos lista la agenda.\n\n` +
           `Escribe "menú" para ver opciones.`
         break
       }
@@ -275,7 +274,7 @@ app.post("/twilio/incoming", (req, res) => {
         })
 
         sessions.set(phone, { state: "MENU", data: {} })
-        replyText = `Listo ✅ Guardé tu cita.\n\nPuedes ver:\n3) Hoy\n4) Semana\n\nO escribe "menú".`
+        replyText = `Listo ✅ Guardé tu cita.\n\nPuedes ver:\n3) Hoy\n4) Próximos 7 días\n\nO escribe "menú".`
         break
       }
       if (normalized === "2") {
@@ -360,19 +359,18 @@ app.post("/twilio/incoming", (req, res) => {
     case "ADD_MED_CONFIRM": {
       if (normalized === "1") {
         const data = session.data
-        // Guardamos como recordatorio para la fecha de inicio (demo). Luego expandimos a repetición real si quieres.
         insertReminderStmt.run({
           phone,
           type: "MEDICATION",
           title: data.name,
-          date: data.startISO,
+          date: data.startISO, // demo: guardamos el inicio como evento
           time: data.time,
           frequency: data.frequency,
           created_at: dayjs().toISOString()
         })
 
         sessions.set(phone, { state: "MENU", data: {} })
-        replyText = `Listo ✅ Guardé tu medicina.\n\nPuedes ver:\n3) Hoy\n4) Semana\n\nO escribe "menú".`
+        replyText = `Listo ✅ Guardé tu medicina.\n\nPuedes ver:\n3) Hoy\n4) Próximos 7 días\n\nO escribe "menú".`
         break
       }
       if (normalized === "2") {
