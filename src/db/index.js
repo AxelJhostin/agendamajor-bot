@@ -23,6 +23,21 @@ const selectRangeStmt = db.prepare(`
   ORDER BY date ASC, time ASC
 `)
 
+const upsertSupportContactStmt = db.prepare(`
+  INSERT INTO support_contacts (phone, name, contact_phone, updated_at)
+  VALUES (@phone, @name, @contact_phone, @updated_at)
+  ON CONFLICT(phone) DO UPDATE SET
+    name = excluded.name,
+    contact_phone = excluded.contact_phone,
+    updated_at = excluded.updated_at
+`)
+
+const selectSupportContactStmt = db.prepare(`
+  SELECT phone, name, contact_phone, updated_at
+  FROM support_contacts
+  WHERE phone = ?
+`)
+
 function insertReminder({ phone, type, title, date, time, frequency }) {
   insertReminderStmt.run({
     phone,
@@ -43,4 +58,17 @@ function getRange(phone, startISO, endISO) {
   return selectRangeStmt.all(phone, startISO, endISO)
 }
 
-module.exports = { insertReminder, getToday, getRange }
+function upsertSupportContact({ phone, name, contactPhone }) {
+  upsertSupportContactStmt.run({
+    phone,
+    name,
+    contact_phone: contactPhone,
+    updated_at: dayjs().toISOString()
+  })
+}
+
+function getSupportContact(phone) {
+  return selectSupportContactStmt.get(phone)
+}
+
+module.exports = { insertReminder, getToday, getRange, upsertSupportContact, getSupportContact }

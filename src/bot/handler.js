@@ -4,7 +4,7 @@ const dayjs = require("dayjs")
 const { buildMenu, buildHelp } = require("./messages")
 const { getSession, setSession, resetToMenu } = require("./sessions")
 const { parseDDMMToISO, isValidTimeHHMM, formatDateISOToDDMM, getNext7DaysRangeISO } = require("../utils/dates")
-const { insertReminder, getToday, getRange } = require("../db")
+const { insertReminder, getToday, getRange, upsertSupportContact, getSupportContact } = require("../db")
 const { buildWeeklyPdf } = require("../pdf/weeklyPdf")
 
 function groupByDate(items) {
@@ -18,6 +18,14 @@ function groupByDate(items) {
     date,
     items: map.get(date).sort((a, b) => a.time.localeCompare(b.time))
   }))
+}
+
+function normalizeContactPhone(input) {
+  const raw = (input || "").trim()
+  const cleaned = raw.replace(/[^\d+]/g, "")
+  const digits = cleaned.replace(/\D/g, "")
+  if (digits.length < 7) return null
+  return cleaned.startsWith("+") ? `+${digits}` : digits
 }
 
 async function handleIncoming(req, res) {
@@ -114,13 +122,20 @@ async function handleIncoming(req, res) {
         break
       }
 
-            if (normalized === "5") {
+      if (normalized === "5") {
         const { start, end } = getNext7DaysRangeISO()
         const rows = getRange(phone, start, end)
 
         let fileName = ""
+        const supportContact = getSupportContact(phone)
         try {
-          const result = await buildWeeklyPdf({ phone, startISO: start, endISO: end, rows })
+          const result = await buildWeeklyPdf({
+            phone,
+            startISO: start,
+            endISO: end,
+            rows,
+            supportContact
+          })
           fileName = result.fileName
         } catch (err) {
           console.error("[pdf] Error generando PDF:", err)
@@ -155,7 +170,23 @@ async function handleIncoming(req, res) {
         return res.type("text/xml").send(twiml.toString())
       }
 
-      replyText = `No te entendí ⚠️\nResponde 1–5 o escribe "menú".`
+      if (normalized === "6") {
+        const current = getSupportContact(phone)
+        if (current && current.contact_phone) {
+          setSession(phone, { state: "SUPPORT_EXISTING", data: { current } })
+          replyText =
+            `Tu contacto de apoyo actual es:\n` +
+            `Nombre: ${current.name || "-"}\n` +
+            `Teléfono: ${current.contact_phone}\n\n` +
+            `¿Quieres cambiarlo?\n1) Sí, cambiar\n0) Menú`
+          break
+        }
+        setSession(phone, { state: "SUPPORT_NAME", data: {} })
+        replyText = "Perfecto.\nVamos a configurar un contacto de apoyo.\n\n¿Cuál es el nombre del contacto?"
+        break
+      }
+
+      replyText = `No te entendí ⚠️\nResponde 1–6 o escribe "menú".`
       break
     }
 
@@ -283,6 +314,68 @@ async function handleIncoming(req, res) {
       if (normalized === "2") {
         setSession(phone, { state: "ADD_MED_START_DATE", data: { name: session.data.name } })
         replyText = `De acuerdo 👍\nRepite la fecha de inicio (DD/MM). Ej: 05/02`
+        break
+      }
+      replyText = `Responde 1 para confirmar, 2 para cambiar, o 0 para menú.`
+      break
+    }
+
+    // CONTACTO DE APOYO
+    case "SUPPORT_EXISTING": {
+      if (normalized === "1") {
+        setSession(phone, { state: "SUPPORT_NAME", data: {} })
+        replyText = "De acuerdo.\n¿Cuál es el nombre del contacto de apoyo?"
+        break
+      }
+      if (normalized === "0") {
+        resetToMenu(phone)
+        replyText = menu
+        break
+      }
+      replyText = "Responde 1 para cambiar, o 0 para menú."
+      break
+    }
+
+    case "SUPPORT_NAME": {
+      if (!body) {
+        replyText = "Escribe el nombre del contacto de apoyo, por favor."
+        break
+      }
+      setSession(phone, { state: "SUPPORT_PHONE", data: { name: body } })
+      replyText = "Gracias.\nAhora escribe el teléfono del contacto (incluye codigo de pais). Ej: +51 999 888 777"
+      break
+    }
+
+    case "SUPPORT_PHONE": {
+      const contactPhone = normalizeContactPhone(body)
+      if (!contactPhone) {
+        replyText = "Telefono no valido.\nEscribe con codigo de pais. Ej: +51 999 888 777"
+        break
+      }
+      setSession(phone, {
+        state: "SUPPORT_CONFIRM",
+        data: { ...session.data, contactPhone }
+      })
+      replyText =
+        `CONFIRMA\nNombre: ${session.data.name}\nTelefono: ${contactPhone}\n\n` +
+        `1) Confirmar\n2) Cambiar\n0) Menú`
+      break
+    }
+
+    case "SUPPORT_CONFIRM": {
+      if (normalized === "1") {
+        upsertSupportContact({
+          phone,
+          name: session.data.name,
+          contactPhone: session.data.contactPhone
+        })
+        resetToMenu(phone)
+        replyText = `Listo ✅ Guardé tu contacto de apoyo.\n\nEscribe "menú" para ver opciones.`
+        break
+      }
+      if (normalized === "2") {
+        setSession(phone, { state: "SUPPORT_NAME", data: {} })
+        replyText = "De acuerdo. Escribe el nombre del contacto de apoyo."
         break
       }
       replyText = `Responde 1 para confirmar, 2 para cambiar, o 0 para menú.`

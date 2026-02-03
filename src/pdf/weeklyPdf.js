@@ -71,7 +71,27 @@ function drawNoItemsCard(doc, margin, width) {
   doc.y = y + height + 12
 }
 
-async function buildWeeklyPdf({ phone, startISO, endISO, rows }) {
+function drawSupportContactCard(doc, margin, width, contact) {
+  const x = margin
+  const y = doc.y + 8
+  const height = 88
+  const name = contact.name || "-"
+
+  doc.save()
+  doc.fillColor(COLORS.softBg).roundedRect(x, y, width, height, 10).fill()
+  doc.strokeColor(COLORS.border).lineWidth(1).roundedRect(x, y, width, height, 10).stroke()
+  doc.restore()
+
+  doc.fillColor(COLORS.primary).font("Helvetica-Bold").fontSize(18)
+  doc.text("Contacto de apoyo", x + 12, y + 12, { width: width - 24 })
+  doc.fillColor(COLORS.text).font("Helvetica").fontSize(16)
+  doc.text(`Nombre: ${name}`, x + 12, y + 40, { width: width - 24 })
+  doc.text(`Tel\u00e9fono: ${contact.contact_phone}`, x + 12, y + 58, { width: width - 24 })
+
+  doc.y = y + height + 8
+}
+
+async function buildWeeklyPdf({ phone, startISO, endISO, rows, supportContact }) {
   const filesDir = path.resolve(__dirname, "../../files")
   ensureDir(filesDir)
 
@@ -100,6 +120,9 @@ async function buildWeeklyPdf({ phone, startISO, endISO, rows }) {
 
   if (!rows || rows.length === 0) {
     drawNoItemsCard(doc, margin, contentWidth)
+    if (supportContact && supportContact.contact_phone) {
+      drawSupportContactCard(doc, margin, contentWidth, supportContact)
+    }
     doc.end()
     await done
     return { fileName, filePath }
@@ -118,6 +141,10 @@ async function buildWeeklyPdf({ phone, startISO, endISO, rows }) {
     }
 
     doc.moveDown(0.6)
+  }
+
+  if (supportContact && supportContact.contact_phone) {
+    drawSupportContactCard(doc, margin, contentWidth, supportContact)
   }
 
   doc.moveDown(0.4)
