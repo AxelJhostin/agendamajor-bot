@@ -1,3 +1,4 @@
+//src/bot/sessions.js
 const sessions = new Map()
 
 function getSession(phone) {

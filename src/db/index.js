@@ -1,3 +1,4 @@
+// src/db/index.js
 const dayjs = require("dayjs")
 const { ensureDb } = require("../../db") // usa tu db.js actual
 
