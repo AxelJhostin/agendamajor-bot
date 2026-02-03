@@ -18,7 +18,7 @@ function groupByDate(items) {
   }))
 }
 
-function buildWeeklyPdf({ phone, startISO, endISO, rows }) {
+async function buildWeeklyPdf({ phone, startISO, endISO, rows }) {
   const filesDir = path.resolve(__dirname, "../../files")
   ensureDir(filesDir)
 
@@ -26,7 +26,12 @@ function buildWeeklyPdf({ phone, startISO, endISO, rows }) {
   const filePath = path.join(filesDir, fileName)
 
   const doc = new PDFDocument({ size: "A4", margin: 48 })
-  doc.pipe(fs.createWriteStream(filePath))
+  const stream = fs.createWriteStream(filePath)
+  doc.pipe(stream)
+  const done = new Promise((resolve, reject) => {
+    stream.on("finish", resolve)
+    stream.on("error", reject)
+  })
 
   doc.fontSize(22).text("AgendaMayor — Plan Semanal", { align: "center" })
   doc.moveDown(0.4)
@@ -40,6 +45,7 @@ function buildWeeklyPdf({ phone, startISO, endISO, rows }) {
     doc.moveDown(1)
     doc.fontSize(12).text("Tip: Puedes pegar este papel en la nevera o cerca de tu cama.")
     doc.end()
+    await done
     return { fileName, filePath }
   }
 
@@ -60,7 +66,7 @@ function buildWeeklyPdf({ phone, startISO, endISO, rows }) {
   doc.moveDown(1)
   doc.fontSize(12).text("Tip: Puedes pegar este papel en la nevera o cerca de tu cama.")
   doc.end()
-
+  await done
   return { fileName, filePath }
 }
 

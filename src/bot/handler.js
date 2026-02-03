@@ -20,7 +20,7 @@ function groupByDate(items) {
   }))
 }
 
-function handleIncoming(req, res) {
+async function handleIncoming(req, res) {
   const phone = req.body.From
   const body = (req.body.Body || "").trim()
   const normalized = body.toLowerCase()
@@ -114,12 +114,24 @@ function handleIncoming(req, res) {
         break
       }
 
-      if (normalized === "5") {
+            if (normalized === "5") {
         const { start, end } = getNext7DaysRangeISO()
         const rows = getRange(phone, start, end)
 
-        const { fileName } = buildWeeklyPdf({ phone, startISO: start, endISO: end, rows })
-        const publicBaseUrl = process.env.PUBLIC_BASE_URL
+        let fileName = ""
+        try {
+          const result = await buildWeeklyPdf({ phone, startISO: start, endISO: end, rows })
+          fileName = result.fileName
+        } catch (err) {
+          console.error("[pdf] Error generando PDF:", err)
+          replyText =
+            `Ocurrió un error generando el PDF ⚠️\n\n` +
+            `Intenta de nuevo más tarde o escribe 4 para ver próximos 7 días.`
+          break
+        }
+
+        const publicBaseUrl = process.env.PUBLIC_BASE_URL || ""
+        console.log("[pdf] PUBLIC_BASE_URL configurada:", publicBaseUrl ? "si" : "no")
 
         if (!publicBaseUrl) {
           replyText =
@@ -129,7 +141,16 @@ function handleIncoming(req, res) {
           break
         }
 
-        const mediaUrl = `${publicBaseUrl}/files/${encodeURIComponent(fileName)}`
+        let baseUrl = publicBaseUrl.trim().replace(/\/+$/, "")
+        if (!/^https?:\/\//i.test(baseUrl)) {
+          console.warn("[pdf] PUBLIC_BASE_URL sin esquema, asumiendo https://")
+          baseUrl = `https://${baseUrl}`
+        }
+        if (/^http:\/\//i.test(baseUrl)) {
+          console.warn("[pdf] PUBLIC_BASE_URL es http, forzando https")
+          baseUrl = baseUrl.replace(/^http:\/\//i, "https://")
+        }
+        const mediaUrl = `${baseUrl}/files/${encodeURIComponent(fileName)}`
         twiml.message("Aquí tienes tu PDF semanal 🧾 (letra grande).").media(mediaUrl)
         return res.type("text/xml").send(twiml.toString())
       }
