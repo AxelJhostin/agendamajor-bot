@@ -2,10 +2,11 @@
 const twilio = require("twilio")
 const dayjs = require("dayjs")
 const { buildMenu, buildHelp } = require("./messages")
-const { getSession, setSession, resetToMenu } = require("./sessions")
+const { getSession, setSession, resetToMenu, incrementErrors, resetErrors } = require("./sessions")
 const { parseDDMMToISO, isValidTimeHHMM, formatDateISOToDDMM, getNext7DaysRangeISO } = require("../utils/dates")
 const { insertReminder, getToday, getRange, upsertSupportContact, getSupportContact } = require("../db")
 const { buildWeeklyPdf } = require("../pdf/weeklyPdf")
+const { aiRoute } = require("../ai/aiRoute")
 
 function groupByDate(items) {
   const map = new Map()
@@ -26,6 +27,33 @@ function normalizeContactPhone(input) {
   const digits = cleaned.replace(/\D/g, "")
   if (digits.length < 7) return null
   return cleaned.startsWith("+") ? `+${digits}` : digits
+}
+
+function setSessionClean(phone, session) {
+  setSession(phone, session)
+  resetErrors(phone)
+}
+
+const INTENT_TO_MENU = {
+  ADD_APPOINTMENT: "1",
+  ADD_MEDICATION: "2",
+  VIEW_TODAY: "3",
+  VIEW_WEEK: "4",
+  GENERATE_PDF: "5",
+  HELP: "HELP",
+  CANCEL: "CANCEL"
+}
+
+function mapIntentToMenuChoice(intent) {
+  return INTENT_TO_MENU[intent] || null
+}
+
+async function getAiHelpOrDefault({ phone, userText, currentState, defaultReply }) {
+  const errorCount = incrementErrors(phone)
+  if (errorCount < 2) return defaultReply
+  const ai = await aiRoute({ userText, currentState, errorCount, language: "es" })
+  if (ai && ai.suggestedReply && ai.suggestedReply.trim()) return ai.suggestedReply
+  return defaultReply
 }
 
 async function handleIncoming(req, res) {
@@ -60,26 +88,76 @@ async function handleIncoming(req, res) {
 
   switch (session.state) {
     case "MENU": {
-      if (normalized === "1") {
-        setSession(phone, { state: "ADD_APPT_TITLE", data: {} })
-        replyText = "Perfecto ✅\n¿Cuál es la cita? (Ej: Cardiólogo, Terapia, Laboratorio)"
+      let menuChoice = normalized
+      let aiSuggestedReply = ""
+      let ai = null
+
+      if (!["1", "2", "3", "4", "5", "6"].includes(menuChoice)) {
+        const errorCount = incrementErrors(phone)
+        ai = await aiRoute({ userText: body, currentState: "MENU", errorCount, language: "es" })
+        if (ai && ai.confidence >= 0.7) {
+          const mapped = mapIntentToMenuChoice(ai.intent)
+          if (mapped === "HELP") {
+            resetErrors(phone)
+            twiml.message(helpText)
+            return res.type("text/xml").send(twiml.toString())
+          }
+          if (mapped === "CANCEL") {
+            resetToMenu(phone)
+            twiml.message(`Cancelado ✅
+
+${menu}`)
+            return res.type("text/xml").send(twiml.toString())
+          }
+          if (mapped) {
+            menuChoice = mapped
+            aiSuggestedReply = ai.suggestedReply || ""
+            resetErrors(phone)
+          }
+        }
+        if (!["1", "2", "3", "4", "5", "6"].includes(menuChoice)) {
+          if (ai && ai.suggestedReply && ai.suggestedReply.trim()) {
+            replyText = ai.suggestedReply
+          } else {
+            replyText = `No te entendí ⚠️
+Responde 1–6 o escribe "menú".`
+          }
+          break
+        }
+      } else {
+        resetErrors(phone)
+      }
+
+      if (menuChoice === "1") {
+        setSessionClean(phone, { state: "ADD_APPT_TITLE", data: {} })
+        replyText =
+          aiSuggestedReply ||
+          "Perfecto\n\u00bfCu\u00e1l es la cita? (Ej: Cardi\u00f3logo, Terapia, Laboratorio)"
         break
       }
 
-      if (normalized === "2") {
-        setSession(phone, { state: "ADD_MED_NAME", data: {} })
-        replyText = "Perfecto ✅\n¿Cuál medicina es? (Ej: Losartán, Insulina, Omeprazol)"
+      if (menuChoice === "2") {
+        setSessionClean(phone, { state: "ADD_MED_NAME", data: {} })
+        replyText =
+          aiSuggestedReply ||
+          "Perfecto\n\u00bfCu\u00e1l medicina es? (Ej: Losart\u00e1n, Insulina, Omeprazol)"
         break
       }
 
-      if (normalized === "3") {
+      if (menuChoice === "3") {
         const todayISO = dayjs().format("YYYY-MM-DD")
         const rows = getToday(phone, todayISO)
 
         if (rows.length === 0) {
           replyText =
-            `Hoy no tienes recordatorios ✅\n\n` +
-            `Si quieres agendar uno, responde:\n1) Cita\n2) Medicina\n\n` +
+            `Hoy no tienes recordatorios ✅
+
+` +
+            `Si quieres agendar uno, responde:
+1) Cita
+2) Medicina
+
+` +
             `O escribe "menú".`
           break
         }
@@ -89,20 +167,30 @@ async function handleIncoming(req, res) {
           const extra = r.type === "MEDICATION" && r.frequency ? ` (${r.frequency})` : ""
           return `${r.time} — ${typeLabel}: ${r.title}${extra}`
         })
-        replyText = `Hoy tienes:\n${lines.join("\n")}\n\nPara ver próximos 7 días responde 4.`
+        replyText = `Hoy tienes:
+${lines.join("\n")}
+
+Para ver próximos 7 días responde 4.`
         break
       }
 
-      if (normalized === "4") {
+      if (menuChoice === "4") {
         const { start, end } = getNext7DaysRangeISO()
         const rangeLabel = `${formatDateISOToDDMM(start)} al ${formatDateISOToDDMM(end)}`
         const rows = getRange(phone, start, end)
 
         if (rows.length === 0) {
           replyText =
-            `Próximos 7 días (${rangeLabel}):\n` +
-            `No tienes recordatorios ✅\n\n` +
-            `Si quieres agendar uno, responde:\n1) Cita\n2) Medicina\n\n` +
+            `Próximos 7 días (${rangeLabel}):
+` +
+            `No tienes recordatorios ✅
+
+` +
+            `Si quieres agendar uno, responde:
+1) Cita
+2) Medicina
+
+` +
             `O escribe "menú".`
           break
         }
@@ -115,14 +203,19 @@ async function handleIncoming(req, res) {
             const extra = r.type === "MEDICATION" && r.frequency ? ` (${r.frequency})` : ""
             return `- ${r.time} — ${typeLabel}: ${r.title}${extra}`
           })
-          return `${header}\n${items.join("\n")}`
+          return `${header}
+${items.join("\n")}`
         })
 
-        replyText = `Próximos 7 días (${rangeLabel}):\n\n${blocks.join("\n\n")}\n\nSi quieres imprimir, usa la opción 5 (PDF).`
+        replyText = `Próximos 7 días (${rangeLabel}):
+
+${blocks.join("\n\n")}
+
+Si quieres imprimir, usa la opción 5 (PDF).`
         break
       }
 
-      if (normalized === "5") {
+      if (menuChoice === "5") {
         const { start, end } = getNext7DaysRangeISO()
         const rows = getRange(phone, start, end)
 
@@ -140,7 +233,9 @@ async function handleIncoming(req, res) {
         } catch (err) {
           console.error("[pdf] Error generando PDF:", err)
           replyText =
-            `Ocurrió un error generando el PDF ⚠️\n\n` +
+            `Ocurrió un error generando el PDF ⚠️
+
+` +
             `Intenta de nuevo más tarde o escribe 4 para ver próximos 7 días.`
           break
         }
@@ -150,8 +245,12 @@ async function handleIncoming(req, res) {
 
         if (!publicBaseUrl) {
           replyText =
-            `Generé el PDF ✅ pero falta configurar PUBLIC_BASE_URL en Railway.\n\n` +
-            `Railway → Variables → PUBLIC_BASE_URL = https://TU-DOMINIO\n\n` +
+            `Generé el PDF ✅ pero falta configurar PUBLIC_BASE_URL en Railway.
+
+` +
+            `Railway → Variables → PUBLIC_BASE_URL = https://TU-DOMINIO
+
+` +
             `Mientras tanto escribe 4 para ver próximos 7 días.`
           break
         }
@@ -170,33 +269,45 @@ async function handleIncoming(req, res) {
         return res.type("text/xml").send(twiml.toString())
       }
 
-      if (normalized === "6") {
+      if (menuChoice === "6") {
         const current = getSupportContact(phone)
         if (current && current.contact_phone) {
-          setSession(phone, { state: "SUPPORT_EXISTING", data: { current } })
+          setSessionClean(phone, { state: "SUPPORT_EXISTING", data: { current } })
           replyText =
-            `Tu contacto de apoyo actual es:\n` +
-            `Nombre: ${current.name || "-"}\n` +
-            `Teléfono: ${current.contact_phone}\n\n` +
-            `¿Quieres cambiarlo?\n1) Sí, cambiar\n0) Menú`
+            `Tu contacto de apoyo actual es:
+` +
+            `Nombre: ${current.name || "-"}
+` +
+            `Teléfono: ${current.contact_phone}
+
+` +
+            `¿Quieres cambiarlo?
+1) Sí, cambiar
+0) Menú`
           break
         }
-        setSession(phone, { state: "SUPPORT_NAME", data: {} })
-        replyText = "Perfecto.\nVamos a configurar un contacto de apoyo.\n\n¿Cuál es el nombre del contacto?"
+        setSessionClean(phone, { state: "SUPPORT_NAME", data: {} })
+        replyText = "Perfecto.\nVamos a configurar un contacto de apoyo.\n\n\u00bfCu\u00e1l es el nombre del contacto?"
         break
       }
 
-      replyText = `No te entendí ⚠️\nResponde 1–6 o escribe "menú".`
+      replyText = `No te entendí ⚠️
+Responde 1–6 o escribe "menú".`
       break
     }
 
     // CITA
     case "ADD_APPT_TITLE": {
       if (!body) {
-        replyText = "Escribe el nombre de la cita, por favor. (Ej: Cardiólogo)"
+        replyText = await getAiHelpOrDefault({
+          phone,
+          userText: body,
+          currentState: session.state,
+          defaultReply: "Escribe el nombre de la cita, por favor. (Ej: Cardiólogo)"
+        })
         break
       }
-      setSession(phone, { state: "ADD_APPT_DATE", data: { title: body } })
+      setSessionClean(phone, { state: "ADD_APPT_DATE", data: { title: body } })
       replyText = `Anotado ✅: ${body}\n\nAhora dime el día (DD/MM). Ej: 05/02`
       break
     }
@@ -204,20 +315,30 @@ async function handleIncoming(req, res) {
     case "ADD_APPT_DATE": {
       const iso = parseDDMMToISO(body)
       if (!iso) {
-        replyText = "Fecha no válida ⚠️\nEscribe en formato DD/MM. Ej: 05/02"
+        replyText = await getAiHelpOrDefault({
+          phone,
+          userText: body,
+          currentState: session.state,
+          defaultReply: "Fecha no válida ⚠️\nEscribe en formato DD/MM. Ej: 05/02"
+        })
         break
       }
-      setSession(phone, { state: "ADD_APPT_TIME", data: { ...session.data, dateISO: iso, dateDDMM: body } })
+      setSessionClean(phone, { state: "ADD_APPT_TIME", data: { ...session.data, dateISO: iso, dateDDMM: body } })
       replyText = `Perfecto ✅ Día: ${body}\n\nAhora dime la hora (HH:MM). Ej: 16:30`
       break
     }
 
     case "ADD_APPT_TIME": {
       if (!isValidTimeHHMM(body)) {
-        replyText = "Hora no válida ⚠️\nEscribe en formato HH:MM. Ej: 16:30"
+        replyText = await getAiHelpOrDefault({
+          phone,
+          userText: body,
+          currentState: session.state,
+          defaultReply: "Hora no válida ⚠️\nEscribe en formato HH:MM. Ej: 16:30"
+        })
         break
       }
-      setSession(phone, { state: "ADD_APPT_CONFIRM", data: { ...session.data, time: body } })
+      setSessionClean(phone, { state: "ADD_APPT_CONFIRM", data: { ...session.data, time: body } })
       replyText =
         `CONFIRMA ✅\nCita: ${session.data.title}\nDía: ${session.data.dateDDMM}\nHora: ${body}\n\n` +
         `1) Confirmar\n2) Cambiar\n0) Menú`
@@ -239,7 +360,7 @@ async function handleIncoming(req, res) {
         break
       }
       if (normalized === "2") {
-        setSession(phone, { state: "ADD_APPT_DATE", data: { title: session.data.title } })
+        setSessionClean(phone, { state: "ADD_APPT_DATE", data: { title: session.data.title } })
         replyText = `De acuerdo 👍\nRepite el día (DD/MM). Ej: 05/02`
         break
       }
@@ -250,10 +371,15 @@ async function handleIncoming(req, res) {
     // MEDICINA
     case "ADD_MED_NAME": {
       if (!body) {
-        replyText = "Escribe el nombre de la medicina, por favor. (Ej: Losartán)"
+        replyText = await getAiHelpOrDefault({
+          phone,
+          userText: body,
+          currentState: session.state,
+          defaultReply: "Escribe el nombre de la medicina, por favor. (Ej: Losartán)"
+        })
         break
       }
-      setSession(phone, { state: "ADD_MED_START_DATE", data: { name: body } })
+      setSessionClean(phone, { state: "ADD_MED_START_DATE", data: { name: body } })
       replyText = `Anotado ✅: ${body}\n\n¿Desde qué día empiezas? (DD/MM). Ej: 05/02`
       break
     }
@@ -261,20 +387,30 @@ async function handleIncoming(req, res) {
     case "ADD_MED_START_DATE": {
       const iso = parseDDMMToISO(body)
       if (!iso) {
-        replyText = "Fecha no válida ⚠️\nEscribe en formato DD/MM. Ej: 05/02"
+        replyText = await getAiHelpOrDefault({
+          phone,
+          userText: body,
+          currentState: session.state,
+          defaultReply: "Fecha no válida ⚠️\nEscribe en formato DD/MM. Ej: 05/02"
+        })
         break
       }
-      setSession(phone, { state: "ADD_MED_TIME", data: { ...session.data, startISO: iso, startDDMM: body } })
+      setSessionClean(phone, { state: "ADD_MED_TIME", data: { ...session.data, startISO: iso, startDDMM: body } })
       replyText = `Perfecto ✅ Desde: ${body}\n\n¿A qué hora? (HH:MM). Ej: 08:00`
       break
     }
 
     case "ADD_MED_TIME": {
       if (!isValidTimeHHMM(body)) {
-        replyText = "Hora no válida ⚠️\nEscribe en formato HH:MM. Ej: 08:00"
+        replyText = await getAiHelpOrDefault({
+          phone,
+          userText: body,
+          currentState: session.state,
+          defaultReply: "Hora no válida ⚠️\nEscribe en formato HH:MM. Ej: 08:00"
+        })
         break
       }
-      setSession(phone, { state: "ADD_MED_FREQ", data: { ...session.data, time: body } })
+      setSessionClean(phone, { state: "ADD_MED_FREQ", data: { ...session.data, time: body } })
       replyText =
         `Gracias ✅\n¿Cada cuánto?\n1) Diario\n2) Lunes/Miércoles/Viernes\n3) Solo una vez\n\nResponde 1, 2 o 3.`
       break
@@ -286,11 +422,16 @@ async function handleIncoming(req, res) {
       else if (normalized === "2") freq = "LUN-MIE-VIE"
       else if (normalized === "3") freq = "UNA_VEZ"
       else {
-        replyText = "Opción no válida ⚠️\nResponde 1, 2 o 3."
+        replyText = await getAiHelpOrDefault({
+          phone,
+          userText: body,
+          currentState: session.state,
+          defaultReply: "Opción no válida ⚠️\nResponde 1, 2 o 3."
+        })
         break
       }
 
-      setSession(phone, { state: "ADD_MED_CONFIRM", data: { ...session.data, frequency: freq } })
+      setSessionClean(phone, { state: "ADD_MED_CONFIRM", data: { ...session.data, frequency: freq } })
       replyText =
         `CONFIRMA ✅\nMedicina: ${session.data.name}\nDesde: ${session.data.startDDMM}\nHora: ${session.data.time}\nFrecuencia: ${freq}\n\n` +
         `1) Confirmar\n2) Cambiar\n0) Menú`
@@ -312,7 +453,7 @@ async function handleIncoming(req, res) {
         break
       }
       if (normalized === "2") {
-        setSession(phone, { state: "ADD_MED_START_DATE", data: { name: session.data.name } })
+        setSessionClean(phone, { state: "ADD_MED_START_DATE", data: { name: session.data.name } })
         replyText = `De acuerdo 👍\nRepite la fecha de inicio (DD/MM). Ej: 05/02`
         break
       }
@@ -323,7 +464,7 @@ async function handleIncoming(req, res) {
     // CONTACTO DE APOYO
     case "SUPPORT_EXISTING": {
       if (normalized === "1") {
-        setSession(phone, { state: "SUPPORT_NAME", data: {} })
+        setSessionClean(phone, { state: "SUPPORT_NAME", data: {} })
         replyText = "De acuerdo.\n¿Cuál es el nombre del contacto de apoyo?"
         break
       }
@@ -338,10 +479,15 @@ async function handleIncoming(req, res) {
 
     case "SUPPORT_NAME": {
       if (!body) {
-        replyText = "Escribe el nombre del contacto de apoyo, por favor."
+        replyText = await getAiHelpOrDefault({
+                  phone,
+        userText: body,
+        currentState: session.state,
+        defaultReply: "Escribe el nombre del contacto de apoyo, por favor."
+      })
         break
       }
-      setSession(phone, { state: "SUPPORT_PHONE", data: { name: body } })
+      setSessionClean(phone, { state: "SUPPORT_PHONE", data: { name: body } })
         replyText = "Gracias.\nAhora escribe el teléfono del contacto (incluye código de país). Ej: +593 99 460 1733"
       break
     }
@@ -349,10 +495,15 @@ async function handleIncoming(req, res) {
     case "SUPPORT_PHONE": {
       const contactPhone = normalizeContactPhone(body)
       if (!contactPhone) {
-        replyText = "Teléfono no válido.\nEscribe con código de país. Ej: +593 99 460 1733"
+        replyText = await getAiHelpOrDefault({
+          phone,
+          userText: body,
+          currentState: session.state,
+          defaultReply: "Teléfono no válido.\nEscribe con código de país. Ej: +593 99 460 1733"
+        })
         break
       }
-      setSession(phone, {
+      setSessionClean(phone, {
         state: "SUPPORT_CONFIRM",
         data: { ...session.data, contactPhone }
       })
@@ -374,7 +525,7 @@ async function handleIncoming(req, res) {
         break
       }
       if (normalized === "2") {
-        setSession(phone, { state: "SUPPORT_NAME", data: {} })
+        setSessionClean(phone, { state: "SUPPORT_NAME", data: {} })
         replyText = "De acuerdo. Escribe el nombre del contacto de apoyo."
         break
       }
