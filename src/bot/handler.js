@@ -342,14 +342,14 @@ async function handleIncoming(req, res) {
         break
       }
       setSession(phone, { state: "SUPPORT_PHONE", data: { name: body } })
-      replyText = "Gracias.\nAhora escribe el teléfono del contacto (incluye codigo de pais). Ej: +51 999 888 777"
+        replyText = "Gracias.\nAhora escribe el teléfono del contacto (incluye código de país). Ej: +593 99 460 1733"
       break
     }
 
     case "SUPPORT_PHONE": {
       const contactPhone = normalizeContactPhone(body)
       if (!contactPhone) {
-        replyText = "Telefono no valido.\nEscribe con codigo de pais. Ej: +51 999 888 777"
+        replyText = "Teléfono no válido.\nEscribe con código de país. Ej: +593 99 460 1733"
         break
       }
       setSession(phone, {
@@ -357,7 +357,7 @@ async function handleIncoming(req, res) {
         data: { ...session.data, contactPhone }
       })
       replyText =
-        `CONFIRMA\nNombre: ${session.data.name}\nTelefono: ${contactPhone}\n\n` +
+        `CONFIRMA\nNombre: ${session.data.name}\nTeléfono: ${contactPhone}\n\n` +
         `1) Confirmar\n2) Cambiar\n0) Menú`
       break
     }
