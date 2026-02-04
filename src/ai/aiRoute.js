@@ -21,33 +21,32 @@ const ALLOWED_INTENTS = new Set([
 const ALLOWED_FREQUENCY = new Set(["DIARIO", "LUN-MIE-VIE", "UNA_VEZ"])
 
 const SYSTEM_PROMPT = [
-  "Eres un clasificador de intención para un bot de WhatsApp llamado AgendaMayor.",
-  "Debes responder SOLO JSON válido, sin texto extra ni markdown. Responde en JSON.",
+  "Eres un clasificador de intenci\u00f3n para un bot de WhatsApp llamado AgendaMayor.",
+  "Debes responder SOLO JSON v\u00e1lido, sin texto extra ni markdown.",
   "Tu salida SIEMPRE debe seguir este formato:",
   "{",
-  "  "intent": "ADD_APPOINTMENT" | "ADD_MEDICATION" | "VIEW_TODAY" | "VIEW_WEEK" | "GENERATE_PDF" | "HELP" | "CANCEL" | "UNKNOWN",",
-  "  "confidence": 0.0,",
-  "  "normalizedText": "",",
-  "  "suggestedReply": "",",
-  "  "extracted": {",
-  "    "title": null,",
-  "    "dateDDMM": null,",
-  "    "timeHHMM": null,",
-  "    "frequency": "DIARIO" | "LUN-MIE-VIE" | "UNA_VEZ" | null",
+  '  "intent": "ADD_APPOINTMENT" | "ADD_MEDICATION" | "VIEW_TODAY" | "VIEW_WEEK" | "GENERATE_PDF" | "HELP" | "CANCEL" | "UNKNOWN",',
+  '  "confidence": 0.0,',
+  '  "normalizedText": "",',
+  '  "suggestedReply": "",',
+  '  "extracted": {',
+  '    "title": null,',
+  '    "dateDDMM": null,',
+  '    "timeHHMM": null,',
+  '    "frequency": "DIARIO" | "LUN-MIE-VIE" | "UNA_VEZ" | null',
   "  }",
   "}",
   "Reglas estrictas:",
-  "- No inventes fechas ni horas. Si no está claro, usa null.",
+  "- No inventes fechas ni horas. Si no est\u00e1 claro, usa null.",
   "- No confirmes ni guardes recordatorios. Solo clasifica.",
-  "- Si hay ambigüedad, usa intent UNKNOWN y confidence baja.",
-  "- normalizedText en minúsculas y sin acentos.",
-  "- suggestedReply debe ser corto (3-6 líneas), lenguaje simple y opciones claras.",
-  "- Si errorCount >= 2 y el error es de formato, sugiere ejemplo y menciona "cancelar".",
+  "- Si hay ambig\u00fcedad, usa intent UNKNOWN y confidence baja.",
+  "- normalizedText en min\u00fasculas y sin acentos.",
+  "- suggestedReply debe ser corto (3-6 l\u00edneas), lenguaje simple y opciones claras.",
+  "- Si errorCount >= 2 y el error es de formato, sugiere ejemplo y menciona \"cancelar\".",
   "- Tono amable, directo y calmado.",
-  "- Idioma: español.",
+  "- Idioma: espa\u00f1ol.",
   "Recuerda: responde SOLO JSON."
-].join("
-")
+].join("\n")
 
 function extractOutputText(data) {
   if (!data) return ""
@@ -65,7 +64,6 @@ function extractOutputText(data) {
     }
     return text
   }
-  // Fallback for chat.completions-like shape
   if (Array.isArray(data.choices) && data.choices[0]?.message?.content) {
     return data.choices[0].message.content
   }
@@ -77,7 +75,6 @@ function safeJsonParse(text) {
   try {
     return JSON.parse(text)
   } catch (_) {
-    // try to extract first JSON object
     const start = text.indexOf("{")
     const end = text.lastIndexOf("}")
     if (start >= 0 && end > start) {

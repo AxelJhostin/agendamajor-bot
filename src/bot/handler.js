@@ -66,7 +66,7 @@ async function handleIncoming(req, res) {
   const helpText = buildHelp()
 
   // Comandos globales
-  if (normalized === "menu" || normalized === "menú" || normalized === "inicio" || normalized === "hola") {
+  if (normalized === "menu" || normalized === "men\u00fa" || normalized === "inicio" || normalized === "hola") {
     resetToMenu(phone)
     twiml.message(menu)
     return res.type("text/xml").send(twiml.toString())
@@ -79,7 +79,7 @@ async function handleIncoming(req, res) {
 
   if (normalized === "cancelar" || normalized === "cancel") {
     resetToMenu(phone)
-    twiml.message(`Cancelado ✅\n\n${menu}`)
+    twiml.message(`Cancelado \u2705\n\n${menu}`)
     return res.type("text/xml").send(twiml.toString())
   }
 
@@ -104,9 +104,7 @@ async function handleIncoming(req, res) {
           }
           if (mapped === "CANCEL") {
             resetToMenu(phone)
-            twiml.message(`Cancelado ✅
-
-${menu}`)
+            twiml.message(`Cancelado \u2705\n\n${menu}`)
             return res.type("text/xml").send(twiml.toString())
           }
           if (mapped) {
@@ -119,8 +117,7 @@ ${menu}`)
           if (ai && ai.suggestedReply && ai.suggestedReply.trim()) {
             replyText = ai.suggestedReply
           } else {
-            replyText = `No te entendí ⚠️
-Responde 1–6 o escribe "menú".`
+            replyText = `No te entend\u00ed \u26a0\ufe0f\nResponde 1\u20136 o escribe \"men\u00fa\".`
           }
           break
         }
@@ -132,7 +129,7 @@ Responde 1–6 o escribe "menú".`
         setSessionClean(phone, { state: "ADD_APPT_TITLE", data: {} })
         replyText =
           aiSuggestedReply ||
-          "Perfecto\n\u00bfCu\u00e1l es la cita? (Ej: Cardi\u00f3logo, Terapia, Laboratorio)"
+          "Perfecto \u2705\n\u00bfCu\u00e1l es la cita? (Ej: Cardi\u00f3logo, Terapia, Laboratorio)"
         break
       }
 
@@ -140,7 +137,7 @@ Responde 1–6 o escribe "menú".`
         setSessionClean(phone, { state: "ADD_MED_NAME", data: {} })
         replyText =
           aiSuggestedReply ||
-          "Perfecto\n\u00bfCu\u00e1l medicina es? (Ej: Losart\u00e1n, Insulina, Omeprazol)"
+          "Perfecto \u2705\n\u00bfCu\u00e1l medicina es? (Ej: Losart\u00e1n, Insulina, Omeprazol)"
         break
       }
 
@@ -150,27 +147,18 @@ Responde 1–6 o escribe "menú".`
 
         if (rows.length === 0) {
           replyText =
-            `Hoy no tienes recordatorios ✅
-
-` +
-            `Si quieres agendar uno, responde:
-1) Cita
-2) Medicina
-
-` +
-            `O escribe "menú".`
+            `Hoy no tienes recordatorios \u2705\n\n` +
+            `Si quieres agendar uno, responde:\n1) Cita\n2) Medicina\n\n` +
+            `O escribe \"men\u00fa\".`
           break
         }
 
         const lines = rows.map((r) => {
           const typeLabel = r.type === "APPOINTMENT" ? "Cita" : "Medicina"
           const extra = r.type === "MEDICATION" && r.frequency ? ` (${r.frequency})` : ""
-          return `${r.time} — ${typeLabel}: ${r.title}${extra}`
+          return `${r.time} \u2014 ${typeLabel}: ${r.title}${extra}`
         })
-        replyText = `Hoy tienes:
-${lines.join("\n")}
-
-Para ver próximos 7 días responde 4.`
+        replyText = `Hoy tienes:\n${lines.join("\\n")}\n\nPara ver pr\u00f3ximos 7 d\u00edas responde 4.`
         break
       }
 
@@ -181,17 +169,10 @@ Para ver próximos 7 días responde 4.`
 
         if (rows.length === 0) {
           replyText =
-            `Próximos 7 días (${rangeLabel}):
-` +
-            `No tienes recordatorios ✅
-
-` +
-            `Si quieres agendar uno, responde:
-1) Cita
-2) Medicina
-
-` +
-            `O escribe "menú".`
+            `Pr\u00f3ximos 7 d\u00edas (${rangeLabel}):\n` +
+            `No tienes recordatorios \u2705\n\n` +
+            `Si quieres agendar uno, responde:\n1) Cita\n2) Medicina\n\n` +
+            `O escribe \"men\u00fa\".`
           break
         }
 
@@ -201,17 +182,12 @@ Para ver próximos 7 días responde 4.`
           const items = g.items.map((r) => {
             const typeLabel = r.type === "APPOINTMENT" ? "Cita" : "Medicina"
             const extra = r.type === "MEDICATION" && r.frequency ? ` (${r.frequency})` : ""
-            return `- ${r.time} — ${typeLabel}: ${r.title}${extra}`
+            return `- ${r.time} \u2014 ${typeLabel}: ${r.title}${extra}`
           })
-          return `${header}
-${items.join("\n")}`
+          return `${header}\n${items.join("\\n")}`
         })
 
-        replyText = `Próximos 7 días (${rangeLabel}):
-
-${blocks.join("\n\n")}
-
-Si quieres imprimir, usa la opción 5 (PDF).`
+        replyText = `Pr\u00f3ximos 7 d\u00edas (${rangeLabel}):\n\n${blocks.join("\\n\\n")}\n\nSi quieres imprimir, usa la opci\u00f3n 5 (PDF).`
         break
       }
 
@@ -233,10 +209,8 @@ Si quieres imprimir, usa la opción 5 (PDF).`
         } catch (err) {
           console.error("[pdf] Error generando PDF:", err)
           replyText =
-            `Ocurrió un error generando el PDF ⚠️
-
-` +
-            `Intenta de nuevo más tarde o escribe 4 para ver próximos 7 días.`
+            `Ocurri\u00f3 un error generando el PDF \u26a0\ufe0f\n\n` +
+            `Intenta de nuevo m\u00e1s tarde o escribe 4 para ver pr\u00f3ximos 7 d\u00edas.`
           break
         }
 
@@ -245,13 +219,9 @@ Si quieres imprimir, usa la opción 5 (PDF).`
 
         if (!publicBaseUrl) {
           replyText =
-            `Generé el PDF ✅ pero falta configurar PUBLIC_BASE_URL en Railway.
-
-` +
-            `Railway → Variables → PUBLIC_BASE_URL = https://TU-DOMINIO
-
-` +
-            `Mientras tanto escribe 4 para ver próximos 7 días.`
+            `Gener\u00e9 el PDF \u2705 pero falta configurar PUBLIC_BASE_URL en Railway.\n\n` +
+            `Railway \u2192 Variables \u2192 PUBLIC_BASE_URL = https://TU-DOMINIO\n\n` +
+            `Mientras tanto escribe 4 para ver pr\u00f3ximos 7 d\u00edas.`
           break
         }
 
@@ -265,7 +235,7 @@ Si quieres imprimir, usa la opción 5 (PDF).`
           baseUrl = baseUrl.replace(/^http:\/\//i, "https://")
         }
         const mediaUrl = `${baseUrl}/files/${encodeURIComponent(fileName)}`
-        twiml.message("Aquí tienes tu PDF semanal 🧾 (letra grande).").media(mediaUrl)
+        twiml.message("Aqu\u00ed tienes tu PDF semanal \uD83E\uDDFE (letra grande)." ).media(mediaUrl)
         return res.type("text/xml").send(twiml.toString())
       }
 
@@ -274,16 +244,10 @@ Si quieres imprimir, usa la opción 5 (PDF).`
         if (current && current.contact_phone) {
           setSessionClean(phone, { state: "SUPPORT_EXISTING", data: { current } })
           replyText =
-            `Tu contacto de apoyo actual es:
-` +
-            `Nombre: ${current.name || "-"}
-` +
-            `Teléfono: ${current.contact_phone}
-
-` +
-            `¿Quieres cambiarlo?
-1) Sí, cambiar
-0) Menú`
+            `Tu contacto de apoyo actual es:\n` +
+            `Nombre: ${current.name || "-"}\n` +
+            `Tel\u00e9fono: ${current.contact_phone}\n\n` +
+            `\u00bfQuieres cambiarlo?\n1) S\u00ed, cambiar\n0) Men\u00fa`
           break
         }
         setSessionClean(phone, { state: "SUPPORT_NAME", data: {} })
@@ -291,8 +255,7 @@ Si quieres imprimir, usa la opción 5 (PDF).`
         break
       }
 
-      replyText = `No te entendí ⚠️
-Responde 1–6 o escribe "menú".`
+      replyText = `No te entend\u00ed \u26a0\ufe0f\nResponde 1\u20136 o escribe \"men\u00fa\".`
       break
     }
 
@@ -303,12 +266,12 @@ Responde 1–6 o escribe "menú".`
           phone,
           userText: body,
           currentState: session.state,
-          defaultReply: "Escribe el nombre de la cita, por favor. (Ej: Cardiólogo)"
+          defaultReply: "Escribe el nombre de la cita, por favor. (Ej: Cardi\u00f3logo)"
         })
         break
       }
       setSessionClean(phone, { state: "ADD_APPT_DATE", data: { title: body } })
-      replyText = `Anotado ✅: ${body}\n\nAhora dime el día (DD/MM). Ej: 05/02`
+      replyText = `Anotado \u2705: ${body}\n\nAhora dime el d\u00eda (DD/MM). Ej: 05/02`
       break
     }
 
@@ -319,12 +282,12 @@ Responde 1–6 o escribe "menú".`
           phone,
           userText: body,
           currentState: session.state,
-          defaultReply: "Fecha no válida ⚠️\nEscribe en formato DD/MM. Ej: 05/02"
+          defaultReply: "Fecha no v\u00e1lida \u26a0\ufe0f\nEscribe en formato DD/MM. Ej: 05/02"
         })
         break
       }
       setSessionClean(phone, { state: "ADD_APPT_TIME", data: { ...session.data, dateISO: iso, dateDDMM: body } })
-      replyText = `Perfecto ✅ Día: ${body}\n\nAhora dime la hora (HH:MM). Ej: 16:30`
+      replyText = `Perfecto \u2705 D\u00eda: ${body}\n\nAhora dime la hora (HH:MM). Ej: 16:30`
       break
     }
 
@@ -334,14 +297,14 @@ Responde 1–6 o escribe "menú".`
           phone,
           userText: body,
           currentState: session.state,
-          defaultReply: "Hora no válida ⚠️\nEscribe en formato HH:MM. Ej: 16:30"
+          defaultReply: "Hora no v\u00e1lida \u26a0\ufe0f\nEscribe en formato HH:MM. Ej: 16:30"
         })
         break
       }
       setSessionClean(phone, { state: "ADD_APPT_CONFIRM", data: { ...session.data, time: body } })
       replyText =
-        `CONFIRMA ✅\nCita: ${session.data.title}\nDía: ${session.data.dateDDMM}\nHora: ${body}\n\n` +
-        `1) Confirmar\n2) Cambiar\n0) Menú`
+        `CONFIRMA \u2705\nCita: ${session.data.title}\nD\u00eda: ${session.data.dateDDMM}\nHora: ${body}\n\n` +
+        `1) Confirmar\n2) Cambiar\n0) Men\u00fa`
       break
     }
 
@@ -356,15 +319,15 @@ Responde 1–6 o escribe "menú".`
           frequency: null
         })
         resetToMenu(phone)
-        replyText = `Listo ✅ Guardé tu cita.\n\nPuedes ver:\n3) Hoy\n4) Próximos 7 días\n\nO escribe "menú".`
+        replyText = `Listo \u2705 Guard\u00e9 tu cita.\n\nPuedes ver:\n3) Hoy\n4) Pr\u00f3ximos 7 d\u00edas\n\nO escribe \"men\u00fa\".`
         break
       }
       if (normalized === "2") {
         setSessionClean(phone, { state: "ADD_APPT_DATE", data: { title: session.data.title } })
-        replyText = `De acuerdo 👍\nRepite el día (DD/MM). Ej: 05/02`
+        replyText = `De acuerdo \uD83D\uDC4D\nRepite el d\u00eda (DD/MM). Ej: 05/02`
         break
       }
-      replyText = `Responde 1 para confirmar, 2 para cambiar, o 0 para menú.`
+      replyText = `Responde 1 para confirmar, 2 para cambiar, o 0 para men\u00fa.`
       break
     }
 
@@ -375,12 +338,12 @@ Responde 1–6 o escribe "menú".`
           phone,
           userText: body,
           currentState: session.state,
-          defaultReply: "Escribe el nombre de la medicina, por favor. (Ej: Losartán)"
+          defaultReply: "Escribe el nombre de la medicina, por favor. (Ej: Losart\u00e1n)"
         })
         break
       }
       setSessionClean(phone, { state: "ADD_MED_START_DATE", data: { name: body } })
-      replyText = `Anotado ✅: ${body}\n\n¿Desde qué día empiezas? (DD/MM). Ej: 05/02`
+      replyText = `Anotado \u2705: ${body}\n\n\u00bfDesde qu\u00e9 d\u00eda empiezas? (DD/MM). Ej: 05/02`
       break
     }
 
@@ -391,12 +354,12 @@ Responde 1–6 o escribe "menú".`
           phone,
           userText: body,
           currentState: session.state,
-          defaultReply: "Fecha no válida ⚠️\nEscribe en formato DD/MM. Ej: 05/02"
+          defaultReply: "Fecha no v\u00e1lida \u26a0\ufe0f\nEscribe en formato DD/MM. Ej: 05/02"
         })
         break
       }
       setSessionClean(phone, { state: "ADD_MED_TIME", data: { ...session.data, startISO: iso, startDDMM: body } })
-      replyText = `Perfecto ✅ Desde: ${body}\n\n¿A qué hora? (HH:MM). Ej: 08:00`
+      replyText = `Perfecto \u2705 Desde: ${body}\n\n\u00bfA qu\u00e9 hora? (HH:MM). Ej: 08:00`
       break
     }
 
@@ -406,13 +369,13 @@ Responde 1–6 o escribe "menú".`
           phone,
           userText: body,
           currentState: session.state,
-          defaultReply: "Hora no válida ⚠️\nEscribe en formato HH:MM. Ej: 08:00"
+          defaultReply: "Hora no v\u00e1lida \u26a0\ufe0f\nEscribe en formato HH:MM. Ej: 08:00"
         })
         break
       }
       setSessionClean(phone, { state: "ADD_MED_FREQ", data: { ...session.data, time: body } })
       replyText =
-        `Gracias ✅\n¿Cada cuánto?\n1) Diario\n2) Lunes/Miércoles/Viernes\n3) Solo una vez\n\nResponde 1, 2 o 3.`
+        `Gracias \u2705\n\u00bfCada cu\u00e1nto?\n1) Diario\n2) Lunes/Mi\u00e9rcoles/Viernes\n3) Solo una vez\n\nResponde 1, 2 o 3.`
       break
     }
 
@@ -426,15 +389,15 @@ Responde 1–6 o escribe "menú".`
           phone,
           userText: body,
           currentState: session.state,
-          defaultReply: "Opción no válida ⚠️\nResponde 1, 2 o 3."
+          defaultReply: "Opci\u00f3n no v\u00e1lida \u26a0\ufe0f\nResponde 1, 2 o 3."
         })
         break
       }
 
       setSessionClean(phone, { state: "ADD_MED_CONFIRM", data: { ...session.data, frequency: freq } })
       replyText =
-        `CONFIRMA ✅\nMedicina: ${session.data.name}\nDesde: ${session.data.startDDMM}\nHora: ${session.data.time}\nFrecuencia: ${freq}\n\n` +
-        `1) Confirmar\n2) Cambiar\n0) Menú`
+        `CONFIRMA \u2705\nMedicina: ${session.data.name}\nDesde: ${session.data.startDDMM}\nHora: ${session.data.time}\nFrecuencia: ${freq}\n\n` +
+        `1) Confirmar\n2) Cambiar\n0) Men\u00fa`
       break
     }
 
@@ -449,15 +412,15 @@ Responde 1–6 o escribe "menú".`
           frequency: session.data.frequency
         })
         resetToMenu(phone)
-        replyText = `Listo ✅ Guardé tu medicina.\n\nPuedes ver:\n3) Hoy\n4) Próximos 7 días\n\nO escribe "menú".`
+        replyText = `Listo \u2705 Guard\u00e9 tu medicina.\n\nPuedes ver:\n3) Hoy\n4) Pr\u00f3ximos 7 d\u00edas\n\nO escribe \"men\u00fa\".`
         break
       }
       if (normalized === "2") {
         setSessionClean(phone, { state: "ADD_MED_START_DATE", data: { name: session.data.name } })
-        replyText = `De acuerdo 👍\nRepite la fecha de inicio (DD/MM). Ej: 05/02`
+        replyText = `De acuerdo \uD83D\uDC4D\nRepite la fecha de inicio (DD/MM). Ej: 05/02`
         break
       }
-      replyText = `Responde 1 para confirmar, 2 para cambiar, o 0 para menú.`
+      replyText = `Responde 1 para confirmar, 2 para cambiar, o 0 para men\u00fa.`
       break
     }
 
@@ -465,7 +428,7 @@ Responde 1–6 o escribe "menú".`
     case "SUPPORT_EXISTING": {
       if (normalized === "1") {
         setSessionClean(phone, { state: "SUPPORT_NAME", data: {} })
-        replyText = "De acuerdo.\n¿Cuál es el nombre del contacto de apoyo?"
+        replyText = "De acuerdo.\n\u00bfCu\u00e1l es el nombre del contacto de apoyo?"
         break
       }
       if (normalized === "0") {
@@ -473,22 +436,22 @@ Responde 1–6 o escribe "menú".`
         replyText = menu
         break
       }
-      replyText = "Responde 1 para cambiar, o 0 para menú."
+      replyText = "Responde 1 para cambiar, o 0 para men\u00fa."
       break
     }
 
     case "SUPPORT_NAME": {
       if (!body) {
         replyText = await getAiHelpOrDefault({
-                  phone,
-        userText: body,
-        currentState: session.state,
-        defaultReply: "Escribe el nombre del contacto de apoyo, por favor."
-      })
+          phone,
+          userText: body,
+          currentState: session.state,
+          defaultReply: "Escribe el nombre del contacto de apoyo, por favor."
+        })
         break
       }
       setSessionClean(phone, { state: "SUPPORT_PHONE", data: { name: body } })
-        replyText = "Gracias.\nAhora escribe el teléfono del contacto (incluye código de país). Ej: +593 99 460 1733"
+      replyText = "Gracias.\nAhora escribe el tel\u00e9fono del contacto (incluye c\u00f3digo de pa\u00eds). Ej: +593 99 460 1733"
       break
     }
 
@@ -499,7 +462,7 @@ Responde 1–6 o escribe "menú".`
           phone,
           userText: body,
           currentState: session.state,
-          defaultReply: "Teléfono no válido.\nEscribe con código de país. Ej: +593 99 460 1733"
+          defaultReply: "Tel\u00e9fono no v\u00e1lido.\nEscribe con c\u00f3digo de pa\u00eds. Ej: +593 99 460 1733"
         })
         break
       }
@@ -508,8 +471,8 @@ Responde 1–6 o escribe "menú".`
         data: { ...session.data, contactPhone }
       })
       replyText =
-        `CONFIRMA\nNombre: ${session.data.name}\nTeléfono: ${contactPhone}\n\n` +
-        `1) Confirmar\n2) Cambiar\n0) Menú`
+        `CONFIRMA\nNombre: ${session.data.name}\nTel\u00e9fono: ${contactPhone}\n\n` +
+        `1) Confirmar\n2) Cambiar\n0) Men\u00fa`
       break
     }
 
@@ -521,7 +484,7 @@ Responde 1–6 o escribe "menú".`
           contactPhone: session.data.contactPhone
         })
         resetToMenu(phone)
-        replyText = `Listo ✅ Guardé tu contacto de apoyo.\n\nEscribe "menú" para ver opciones.`
+        replyText = `Listo \u2705 Guard\u00e9 tu contacto de apoyo.\n\nEscribe \"men\u00fa\" para ver opciones.`
         break
       }
       if (normalized === "2") {
@@ -529,7 +492,7 @@ Responde 1–6 o escribe "menú".`
         replyText = "De acuerdo. Escribe el nombre del contacto de apoyo."
         break
       }
-      replyText = `Responde 1 para confirmar, 2 para cambiar, o 0 para menú.`
+      replyText = `Responde 1 para confirmar, 2 para cambiar, o 0 para men\u00fa.`
       break
     }
 
