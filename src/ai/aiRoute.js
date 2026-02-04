@@ -20,6 +20,143 @@ const ALLOWED_INTENTS = new Set([
 
 const ALLOWED_FREQUENCY = new Set(["DIARIO", "LUN-MIE-VIE", "UNA_VEZ"])
 
+function normalizeBasic(text) {
+  return (text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+function extractDateDDMM(text) {
+  const m = text.match(/\b([0-3]?\d)[\/\-]([01]?\d)\b/)
+  if (!m) return null
+  const dd = String(Number(m[1])).padStart(2, "0")
+  const mm = String(Number(m[2])).padStart(2, "0")
+  return `${dd}/${mm}`
+}
+
+function extractTime(text) {
+  const m1 = text.match(/\b([01]?\d|2[0-3])[:.](\d{2})\b/)
+  if (m1) return `${m1[1].padStart(2, "0")}:${m1[2]}`
+  const m2 = text.match(/\b([1-9]|1[0-2])\s*(am|pm)\b/)
+  if (m2) {
+    let h = Number(m2[1])
+    const pm = m2[2] === "pm"
+    if (pm && h < 12) h += 12
+    if (!pm && h === 12) h = 0
+    return `${String(h).padStart(2, "0")}:00`
+  }
+  return null
+}
+
+function extractFrequency(text) {
+  if (/\bdiario|cada dia|todos los dias|todas las noches|diaria\b/.test(text)) return "DIARIO"
+  if (/\blunes.*miercoles.*viernes|\blun.*mie.*vie\b/.test(text)) return "LUN-MIE-VIE"
+  if (/\buna vez|solo una vez|unica vez|por unica vez\b/.test(text)) return "UNA_VEZ"
+  return null
+}
+
+function localRoute({ userText }) {
+  const normalized = normalizeBasic(userText)
+  const extracted = {
+    title: null,
+    dateDDMM: extractDateDDMM(normalized),
+    timeHHMM: extractTime(normalized),
+    frequency: extractFrequency(normalized)
+  }
+
+  const has = (re) => re.test(normalized)
+  if (
+    has(/\bagendar|programar|reservar|sacar cita|poner cita|cita medica|cita médica|turno|turnito|separar cita|pedir cita\b/) &&
+    has(/\bcita|doctor|medico|m[eé]dico|consulta|especialista|clinica|cl[ií]nica|hospital|odontologo|odontólogo|dentista|pediatra|cardiologo|cardiólogo|ginecologo|ginecólogo\b/)
+  ) {
+    return {
+      intent: "ADD_APPOINTMENT",
+      confidence: 0.8,
+      normalizedText: "agendar cita",
+      suggestedReply: "",
+      extracted
+    }
+  }
+  if (
+    has(
+      /\bmedicina|medicamento|pastilla|pastillita|tableta|inyeccion|inyección|jarabe|capsula|c[aá]psula|vitamina|insulina|gotas|spray|paracetamol|ibuprofeno|losartan|omeprazol\b/
+    )
+  ) {
+    return {
+      intent: "ADD_MEDICATION",
+      confidence: 0.78,
+      normalizedText: "agendar medicina",
+      suggestedReply:
+        extracted.timeHHMM || extracted.frequency || extracted.dateDDMM
+          ? "Perfecto ✅ Vamos paso a paso. ¿Cuál es la medicina? (Ej: Losartán)"
+          : "",
+      extracted
+    }
+  }
+  if (has(/\bhoy\b|para hoy|del dia|del d[ií]a|que tengo hoy|tengo hoy|hoy que hay\b/)) {
+    return {
+      intent: "VIEW_TODAY",
+      confidence: 0.9,
+      normalizedText: "ver hoy",
+      suggestedReply: "",
+      extracted
+    }
+  }
+  if (
+    has(
+      /\bsemana|semanal|proximos 7 dias|proximos siete dias|esta semana|mi semana|proxima semana|pr[oó]xima semana|siguiente semana|7 dias|siete dias\b/
+    )
+  ) {
+    return {
+      intent: "VIEW_WEEK",
+      confidence: 0.9,
+      normalizedText: "ver semana",
+      suggestedReply: "",
+      extracted
+    }
+  }
+  if (
+    has(
+      /\bpdf\b|imprimir|imprime|imprimeme|semana en pdf|pdf semanal|agenda en pdf|mandame el pdf|manda el pdf|en pdf|sacar pdf|descargar pdf\b/
+    )
+  ) {
+    return {
+      intent: "GENERATE_PDF",
+      confidence: 0.9,
+      normalizedText: "pdf semanal",
+      suggestedReply: "",
+      extracted
+    }
+  }
+  if (
+    has(
+      /\bayuda|menu|menú|opciones|no entiendo|no comprendo|explicame|explica|como funciona|qué hago|que hago|guia|guía|instrucciones\b/
+    )
+  ) {
+    return {
+      intent: "HELP",
+      confidence: 0.85,
+      normalizedText: "ayuda",
+      suggestedReply: "",
+      extracted
+    }
+  }
+  if (has(/\bcancelar|cancel|anular|volver|salir|atras|atr[aá]s\b/)) {
+    return {
+      intent: "CANCEL",
+      confidence: 0.85,
+      normalizedText: "cancelar",
+      suggestedReply: "",
+      extracted
+    }
+  }
+
+  return { ...DEFAULT_RESULT }
+}
+
 const SYSTEM_PROMPT = [
   "Eres un clasificador de intenci\u00f3n para un bot de WhatsApp llamado AgendaMayor.",
   "Debes responder SOLO JSON v\u00e1lido, sin texto extra ni markdown.",
@@ -107,7 +244,7 @@ function normalizeOutput(obj) {
 
 async function aiRoute({ userText, currentState, errorCount, language = "es" }) {
   const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) return { ...DEFAULT_RESULT }
+  if (!apiKey) return localRoute({ userText, currentState, errorCount, language })
 
   const model = process.env.OPENAI_MODEL || "gpt-4o-mini"
   const payload = {
@@ -137,17 +274,17 @@ async function aiRoute({ userText, currentState, errorCount, language = "es" }) 
     if (!resp.ok) {
       const errText = await resp.text().catch(() => "")
       console.error("[ai] OpenAI error:", resp.status, errText)
-      return { ...DEFAULT_RESULT }
+      return localRoute({ userText, currentState, errorCount, language })
     }
 
     const data = await resp.json()
     const text = extractOutputText(data)
     const parsed = safeJsonParse(text)
-    if (!parsed) return { ...DEFAULT_RESULT }
+    if (!parsed) return localRoute({ userText, currentState, errorCount, language })
     return normalizeOutput(parsed)
   } catch (err) {
     console.error("[ai] Error llamando a OpenAI:", err)
-    return { ...DEFAULT_RESULT }
+    return localRoute({ userText, currentState, errorCount, language })
   }
 }
 
