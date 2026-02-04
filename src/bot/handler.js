@@ -79,7 +79,7 @@ async function handleIncoming(req, res) {
 
   if (normalized === "cancelar" || normalized === "cancel") {
     resetToMenu(phone)
-    twiml.message(`Cancelado \u2705\n\n${menu}`)
+    twiml.message(`Cancelado \u2705\nEstoy aqu\u00ed para ayudarte.\n\n${menu}`)
     return res.type("text/xml").send(twiml.toString())
   }
 
@@ -104,7 +104,7 @@ async function handleIncoming(req, res) {
           }
           if (mapped === "CANCEL") {
             resetToMenu(phone)
-            twiml.message(`Cancelado \u2705\n\n${menu}`)
+            twiml.message(`Cancelado \u2705\nEstoy aqu\u00ed para ayudarte.\n\n${menu}`)
             return res.type("text/xml").send(twiml.toString())
           }
           if (mapped) {
@@ -117,7 +117,7 @@ async function handleIncoming(req, res) {
           if (ai && ai.suggestedReply && ai.suggestedReply.trim()) {
             replyText = ai.suggestedReply
           } else {
-            replyText = `No te entend\u00ed \u26a0\ufe0f\nResponde 1\u20136 o escribe \"men\u00fa\".`
+            replyText = `No te entend\u00ed \u26a0\ufe0f\nPero estoy aqu\u00ed para ayudarte.\nResponde 1\u20136 o escribe \"men\u00fa\".`
           }
           break
         }
@@ -255,7 +255,7 @@ async function handleIncoming(req, res) {
         break
       }
 
-      replyText = `No te entend\u00ed \u26a0\ufe0f\nResponde 1\u20136 o escribe \"men\u00fa\".`
+      replyText = `No te entend\u00ed \u26a0\ufe0f\nPero estoy aqu\u00ed para ayudarte.\nResponde 1\u20136 o escribe \"men\u00fa\".`
       break
     }
 
