@@ -112,11 +112,7 @@ async function handleIncoming(req, res) {
           }
         }
         if (!["1", "2", "3", "4", "5", "6"].includes(menuChoice)) {
-          if (ai && ai.confidence < 0.7 && ai.suggestedReply && ai.suggestedReply.trim()) {
-            replyText = ai.suggestedReply
-          } else {
-            replyText = `No te entend\u00ed \u26a0\ufe0f\nPero estoy aqu\u00ed para ayudarte.\nResponde 1\u20136 o escribe \"men\u00fa\".`
-          }
+          replyText = `No te entend\u00ed \u26a0\ufe0f\nPero estoy aqu\u00ed para ayudarte.\nResponde 1\u20136 o escribe \"men\u00fa\".`
           break
         }
       } else {
