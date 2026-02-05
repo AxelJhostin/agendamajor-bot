@@ -23,6 +23,10 @@ app.post("/twilio/incoming", handleIncoming)
 const PORT = process.env.PORT || 8080
 app.listen(PORT, () => {
   const publicBaseUrl = process.env.PUBLIC_BASE_URL || ""
+  const geminiKey = process.env.GEMINI_API_KEY || ""
+  const openaiKey = process.env.OPENAI_API_KEY || ""
   console.log(`Servidor corriendo en puerto ${PORT}`)
   console.log(`[startup] PUBLIC_BASE_URL configurada: ${publicBaseUrl ? "si" : "no"}`)
+  console.log(`[startup] GEMINI_API_KEY configurada: ${geminiKey ? "si" : "no"}`)
+  console.log(`[startup] OPENAI_API_KEY configurada: ${openaiKey ? "si" : "no"}`)
 })
