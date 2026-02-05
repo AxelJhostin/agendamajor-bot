@@ -52,7 +52,7 @@ async function getAiHelpOrDefault({ phone, userText, currentState, defaultReply 
   const errorCount = incrementErrors(phone)
   if (errorCount < 2) return defaultReply
   const ai = await aiRoute({ userText, currentState, errorCount, language: "es" })
-  if (ai && ai.suggestedReply && ai.suggestedReply.trim()) return ai.suggestedReply
+  if (ai && ai.confidence < 0.7 && ai.suggestedReply && ai.suggestedReply.trim()) return ai.suggestedReply
   return defaultReply
 }
 
@@ -89,7 +89,6 @@ async function handleIncoming(req, res) {
   switch (session.state) {
     case "MENU": {
       let menuChoice = normalized
-      let aiSuggestedReply = ""
       let ai = null
 
       if (!["1", "2", "3", "4", "5", "6"].includes(menuChoice)) {
@@ -109,12 +108,11 @@ async function handleIncoming(req, res) {
           }
           if (mapped) {
             menuChoice = mapped
-            aiSuggestedReply = ai.suggestedReply || ""
             resetErrors(phone)
           }
         }
         if (!["1", "2", "3", "4", "5", "6"].includes(menuChoice)) {
-          if (ai && ai.suggestedReply && ai.suggestedReply.trim()) {
+          if (ai && ai.confidence < 0.7 && ai.suggestedReply && ai.suggestedReply.trim()) {
             replyText = ai.suggestedReply
           } else {
             replyText = `No te entend\u00ed \u26a0\ufe0f\nPero estoy aqu\u00ed para ayudarte.\nResponde 1\u20136 o escribe \"men\u00fa\".`
@@ -127,17 +125,13 @@ async function handleIncoming(req, res) {
 
       if (menuChoice === "1") {
         setSessionClean(phone, { state: "ADD_APPT_TITLE", data: {} })
-        replyText =
-          aiSuggestedReply ||
-          "Perfecto \u2705\n\u00bfCu\u00e1l es la cita? (Ej: Cardi\u00f3logo, Terapia, Laboratorio)"
+        replyText = "Perfecto \u2705\n\u00bfCu\u00e1l es la cita? (Ej: Cardi\u00f3logo, Terapia, Laboratorio)"
         break
       }
 
       if (menuChoice === "2") {
         setSessionClean(phone, { state: "ADD_MED_NAME", data: {} })
-        replyText =
-          aiSuggestedReply ||
-          "Perfecto \u2705\n\u00bfCu\u00e1l medicina es? (Ej: Losart\u00e1n, Insulina, Omeprazol)"
+        replyText = "Perfecto \u2705\n\u00bfCu\u00e1l medicina es? (Ej: Losart\u00e1n, Insulina, Omeprazol)"
         break
       }
 
