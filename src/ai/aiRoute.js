@@ -285,7 +285,8 @@ async function callGemini({ userText, currentState, errorCount, language }) {
     }
     const parsed = safeJsonParse(text)
     if (!parsed) {
-      console.error("[ai] Gemini JSON parse failed")
+      const preview = text ? text.slice(0, 600) : ""
+      console.error("[ai] Gemini JSON parse failed. Preview:", preview)
       return null
     }
     return normalizeOutput(parsed)
