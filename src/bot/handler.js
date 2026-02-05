@@ -89,35 +89,13 @@ async function handleIncoming(req, res) {
   switch (session.state) {
     case "MENU": {
       let menuChoice = normalized
-      let ai = null
 
       if (!["1", "2", "3", "4", "5", "6"].includes(menuChoice)) {
-        const errorCount = incrementErrors(phone)
-        ai = await aiRoute({ userText: body, currentState: "MENU", errorCount, language: "es" })
-        if (ai && ai.confidence >= 0.7) {
-          const mapped = mapIntentToMenuChoice(ai.intent)
-          if (mapped === "HELP") {
-            resetErrors(phone)
-            twiml.message(helpText)
-            return res.type("text/xml").send(twiml.toString())
-          }
-          if (mapped === "CANCEL") {
-            resetToMenu(phone)
-            twiml.message(`Cancelado \u2705\nEstoy aqu\u00ed para ayudarte.\n\n${menu}`)
-            return res.type("text/xml").send(twiml.toString())
-          }
-          if (mapped) {
-            menuChoice = mapped
-            resetErrors(phone)
-          }
-        }
-        if (!["1", "2", "3", "4", "5", "6"].includes(menuChoice)) {
-          replyText = `No te entend\u00ed \u26a0\ufe0f\nPero estoy aqu\u00ed para ayudarte.\nResponde 1\u20136 o escribe \"men\u00fa\".`
-          break
-        }
-      } else {
-        resetErrors(phone)
+        replyText = `No te entend\u00ed \u26a0\ufe0f\nPero estoy aqu\u00ed para ayudarte.\nResponde 1\u20136 o escribe \"men\u00fa\".`
+        break
       }
+
+      resetErrors(phone)
 
       if (menuChoice === "1") {
         setSessionClean(phone, { state: "ADD_APPT_TITLE", data: {} })
