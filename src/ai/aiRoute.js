@@ -69,8 +69,8 @@ function localRoute({ userText }) {
 
   const has = (re) => re.test(normalized)
   if (
-    has(/\bagendar|programar|reservar|sacar cita|poner cita|cita medica|cita médica|turno|turnito|separar cita|pedir cita\b/) &&
-    has(/\bcita|doctor|medico|m[eé]dico|consulta|especialista|clinica|cl[ií]nica|hospital|odontologo|odontólogo|dentista|pediatra|cardiologo|cardiólogo|ginecologo|ginecólogo\b/)
+    has(/\bagendar|programar|reservar|sacar cita|poner cita|cita medica|turno|turnito|separar cita|pedir cita\b/) &&
+    has(/\bcita|doctor|medico|consulta|especialista|clinica|hospital|odontologo|dentista|pediatra|cardiologo|ginecologo\b/)
   ) {
     return {
       intent: "ADD_APPOINTMENT",
@@ -81,9 +81,7 @@ function localRoute({ userText }) {
     }
   }
   if (
-    has(
-      /\bmedicina|medicamento|pastilla|pastillita|tableta|inyeccion|inyección|jarabe|capsula|c[aá]psula|vitamina|insulina|gotas|spray|paracetamol|ibuprofeno|losartan|omeprazol\b/
-    )
+    has(/\bmedicina|medicamento|pastilla|pastillita|tableta|inyeccion|jarabe|capsula|vitamina|insulina|gotas|spray|paracetamol|ibuprofeno|losartan|omeprazol\b/)
   ) {
     return {
       intent: "ADD_MEDICATION",
@@ -91,12 +89,12 @@ function localRoute({ userText }) {
       normalizedText: "agendar medicina",
       suggestedReply:
         extracted.timeHHMM || extracted.frequency || extracted.dateDDMM
-          ? "Perfecto ✅ Vamos paso a paso. ¿Cuál es la medicina? (Ej: Losartán)"
+          ? "Perfecto \u2705 Vamos paso a paso. \u00bfCu\u00e1l es la medicina? (Ej: Losart\u00e1n)"
           : "",
       extracted
     }
   }
-  if (has(/\bhoy\b|para hoy|del dia|del d[ií]a|que tengo hoy|tengo hoy|hoy que hay\b/)) {
+  if (has(/\bhoy\b|para hoy|del dia|que tengo hoy|tengo hoy|hoy que hay\b/)) {
     return {
       intent: "VIEW_TODAY",
       confidence: 0.9,
@@ -106,9 +104,7 @@ function localRoute({ userText }) {
     }
   }
   if (
-    has(
-      /\bsemana|semanal|proximos 7 dias|proximos siete dias|esta semana|mi semana|proxima semana|pr[oó]xima semana|siguiente semana|7 dias|siete dias\b/
-    )
+    has(/\bsemana|semanal|proximos 7 dias|proximos siete dias|esta semana|mi semana|proxima semana|siguiente semana|7 dias|siete dias\b/)
   ) {
     return {
       intent: "VIEW_WEEK",
@@ -119,9 +115,7 @@ function localRoute({ userText }) {
     }
   }
   if (
-    has(
-      /\bpdf\b|imprimir|imprime|imprimeme|semana en pdf|pdf semanal|agenda en pdf|mandame el pdf|manda el pdf|en pdf|sacar pdf|descargar pdf\b/
-    )
+    has(/\bpdf\b|imprimir|imprime|imprimeme|semana en pdf|pdf semanal|agenda en pdf|mandame el pdf|manda el pdf|en pdf|sacar pdf|descargar pdf\b/)
   ) {
     return {
       intent: "GENERATE_PDF",
@@ -132,9 +126,7 @@ function localRoute({ userText }) {
     }
   }
   if (
-    has(
-      /\bayuda|menu|menú|opciones|no entiendo|no comprendo|explicame|explica|como funciona|qué hago|que hago|guia|guía|instrucciones\b/
-    )
+    has(/\bayuda|menu|opciones|no entiendo|no comprendo|explicame|explica|como funciona|que hago|guia|instrucciones\b/)
   ) {
     return {
       intent: "HELP",
@@ -144,7 +136,7 @@ function localRoute({ userText }) {
       extracted
     }
   }
-  if (has(/\bcancelar|cancel|anular|volver|salir|atras|atr[aá]s\b/)) {
+  if (has(/\bcancelar|cancel|anular|volver|salir|atras\b/)) {
     return {
       intent: "CANCEL",
       confidence: 0.85,
@@ -158,8 +150,8 @@ function localRoute({ userText }) {
 }
 
 const SYSTEM_PROMPT = [
-  "Eres un clasificador de intenci\u00f3n para un bot de WhatsApp llamado AgendaMayor.",
-  "Debes responder SOLO JSON v\u00e1lido, sin texto extra ni markdown.",
+  "Eres un clasificador de intencion para un bot de WhatsApp llamado AgendaMayor.",
+  "Debes responder SOLO JSON valido, sin texto extra ni markdown.",
   "Tu salida SIEMPRE debe seguir este formato:",
   "{",
   '  "intent": "ADD_APPOINTMENT" | "ADD_MEDICATION" | "VIEW_TODAY" | "VIEW_WEEK" | "GENERATE_PDF" | "HELP" | "CANCEL" | "UNKNOWN",',
@@ -174,14 +166,14 @@ const SYSTEM_PROMPT = [
   "  }",
   "}",
   "Reglas estrictas:",
-  "- No inventes fechas ni horas. Si no est\u00e1 claro, usa null.",
+  "- No inventes fechas ni horas. Si no esta claro, usa null.",
   "- No confirmes ni guardes recordatorios. Solo clasifica.",
-  "- Si hay ambig\u00fcedad, usa intent UNKNOWN y confidence baja.",
-  "- normalizedText en min\u00fasculas y sin acentos.",
-  "- suggestedReply debe ser corto (3-6 l\u00edneas), lenguaje simple y opciones claras.",
+  "- Si hay ambiguedad, usa intent UNKNOWN y confidence baja.",
+  "- normalizedText en minusculas y sin acentos.",
+  "- suggestedReply debe ser corto (3-6 lineas), lenguaje simple y opciones claras.",
   "- Si errorCount >= 2 y el error es de formato, sugiere ejemplo y menciona \"cancelar\".",
   "- Tono amable, directo y calmado.",
-  "- Idioma: espa\u00f1ol.",
+  "- Idioma: espanol.",
   "Recuerda: responde SOLO JSON."
 ].join("\n")
 
@@ -205,6 +197,13 @@ function extractOutputText(data) {
     return data.choices[0].message.content
   }
   return ""
+}
+
+function extractGeminiText(data) {
+  if (!data || !Array.isArray(data.candidates)) return ""
+  const parts = data.candidates[0]?.content?.parts
+  if (!Array.isArray(parts)) return ""
+  return parts.map((p) => (p && typeof p.text === "string" ? p.text : "")).join("")
 }
 
 function safeJsonParse(text) {
@@ -242,9 +241,62 @@ function normalizeOutput(obj) {
   return out
 }
 
-async function aiRoute({ userText, currentState, errorCount, language = "es" }) {
+async function callGemini({ userText, currentState, errorCount, language }) {
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) return null
+
+  const model = process.env.GEMINI_MODEL || "gemini-1.5-flash"
+  const payload = {
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { text: SYSTEM_PROMPT },
+          { text: JSON.stringify({ userText, currentState, errorCount, language }) }
+        ]
+      }
+    ],
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: 350
+    }
+  }
+
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    })
+
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "")
+      console.error("[ai] Gemini error:", resp.status, errText)
+      return null
+    }
+
+    const data = await resp.json()
+    const text = extractGeminiText(data)
+    if (!text) {
+      console.error("[ai] Gemini response without text")
+      return null
+    }
+    const parsed = safeJsonParse(text)
+    if (!parsed) {
+      console.error("[ai] Gemini JSON parse failed")
+      return null
+    }
+    return normalizeOutput(parsed)
+  } catch (err) {
+    console.error("[ai] Error llamando a Gemini:", err)
+    return null
+  }
+}
+
+async function callOpenAI({ userText, currentState, errorCount, language }) {
   const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) return localRoute({ userText, currentState, errorCount, language })
+  if (!apiKey) return null
 
   const model = process.env.OPENAI_MODEL || "gpt-4o-mini"
   const payload = {
@@ -274,18 +326,28 @@ async function aiRoute({ userText, currentState, errorCount, language = "es" }) 
     if (!resp.ok) {
       const errText = await resp.text().catch(() => "")
       console.error("[ai] OpenAI error:", resp.status, errText)
-      return localRoute({ userText, currentState, errorCount, language })
+      return null
     }
 
     const data = await resp.json()
     const text = extractOutputText(data)
     const parsed = safeJsonParse(text)
-    if (!parsed) return localRoute({ userText, currentState, errorCount, language })
+    if (!parsed) return null
     return normalizeOutput(parsed)
   } catch (err) {
     console.error("[ai] Error llamando a OpenAI:", err)
-    return localRoute({ userText, currentState, errorCount, language })
+    return null
   }
+}
+
+async function aiRoute({ userText, currentState, errorCount, language = "es" }) {
+  const gemini = await callGemini({ userText, currentState, errorCount, language })
+  if (gemini) return gemini
+
+  const openai = await callOpenAI({ userText, currentState, errorCount, language })
+  if (openai) return openai
+
+  return localRoute({ userText, currentState, errorCount, language })
 }
 
 module.exports = { aiRoute }
