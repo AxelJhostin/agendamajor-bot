@@ -206,15 +206,32 @@ function extractGeminiText(data) {
   return parts.map((p) => (p && typeof p.text === "string" ? p.text : "")).join("")
 }
 
+function stripCodeFences(text) {
+  return text
+    .replace(/```json/gi, "```")
+    .replace(/```/g, "")
+    .trim()
+}
+
+function removeTrailingCommas(text) {
+  return text
+    .replace(/,\s*}/g, "}")
+    .replace(/,\s*]/g, "]")
+}
+
 function safeJsonParse(text) {
   if (!text || typeof text !== "string") return null
   try {
     return JSON.parse(text)
   } catch (_) {
-    const start = text.indexOf("{")
-    const end = text.lastIndexOf("}")
+    const cleaned = removeTrailingCommas(stripCodeFences(text))
+    try {
+      return JSON.parse(cleaned)
+    } catch (_) {}
+    const start = cleaned.indexOf("{")
+    const end = cleaned.lastIndexOf("}")
     if (start >= 0 && end > start) {
-      const candidate = text.slice(start, end + 1)
+      const candidate = removeTrailingCommas(cleaned.slice(start, end + 1))
       try {
         return JSON.parse(candidate)
       } catch (_) {
@@ -247,11 +264,14 @@ async function callGemini({ userText, currentState, errorCount, language }) {
 
   const model = process.env.GEMINI_MODEL || "gemini-2.5-flash"
   const payload = {
+    systemInstruction: {
+      role: "system",
+      parts: [{ text: SYSTEM_PROMPT }]
+    },
     contents: [
       {
         role: "user",
         parts: [
-          { text: SYSTEM_PROMPT },
           { text: JSON.stringify({ userText, currentState, errorCount, language }) }
         ]
       }
@@ -286,7 +306,7 @@ async function callGemini({ userText, currentState, errorCount, language }) {
     const parsed = safeJsonParse(text)
     if (!parsed) {
       const preview = text ? text.slice(0, 600) : ""
-      console.error("[ai] Gemini JSON parse failed. Preview:", preview)
+      console.error("[ai] Gemini JSON parse failed. Preview:", JSON.stringify(preview))
       return null
     }
     return normalizeOutput(parsed)
